@@ -9,6 +9,7 @@ services:
       - SNAPSHOT_URL=${SNAPSHOT_URL:-https://constellationlabs-dashboard-beta.s3.amazonaws.com/intuition-03-11-2026.tar.gz}
       - OFFICIAL_RPC=https://rpc.intuition.systems/http
       - NITRO_RPC=http://nitro:8545
+      - BASE_RPC_URL=${BASE_RPC_URL}
     restart: unless-stopped
 
   nitro:

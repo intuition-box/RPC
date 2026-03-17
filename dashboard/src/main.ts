@@ -23,6 +23,8 @@ interface Status {
   scanProgress?: number
   scanStep?: 'assertions' | 'batches' | 'starting'
   assertionNode?: number
+  totalAssertions?: number
+  assertionProgress?: number
   message?: string
   updatedAt?: string
 }
@@ -163,13 +165,26 @@ function scanningHTML(s: Status): string {
   let stepContent = ''
 
   if (step === 'assertions') {
+    const aNode = s.assertionNode ?? 0
+    const aTotal = s.totalAssertions ?? 0
+    const aPct = s.assertionProgress ?? 0
     stepContent = `
-      <div class="spinner"></div>
       <div class="phase-title">Validating rollup assertions</div>
       <div class="phase-message scan-explain">
         Verifying assertions posted to Base by the rollup validators.
-        ${s.assertionNode ? `Assertion ${fmt(s.assertionNode)} verified...` : ''}
       </div>
+      ${aTotal > 0 ? `
+        <div class="progress-bar-wrapper">
+          <div class="progress-bar"><div class="fill" style="width: ${aPct}%"></div></div>
+          <div class="progress-info">
+            <span>Assertion ${fmt(aNode)} / ${fmt(aTotal)}</span>
+            <span>${aPct}%</span>
+          </div>
+        </div>
+      ` : `
+        <div class="spinner"></div>
+        <div class="phase-message">${aNode > 0 ? `Assertion ${fmt(aNode)} verified...` : 'Starting...'}</div>
+      `}
     `
   } else if (step === 'batches' && total > 0) {
     stepContent = `

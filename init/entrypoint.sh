@@ -8,7 +8,10 @@ READY_FILE="$DATA_DIR/.ready"
 SNAPSHOT_URL="${SNAPSHOT_URL:-https://constellationlabs-dashboard-beta.s3.amazonaws.com/intuition-03-11-2026.tar.gz}"
 OFFICIAL_RPC="${OFFICIAL_RPC:-https://rpc.intuition.systems/http}"
 NITRO_RPC="${NITRO_RPC:-http://nitro:8545}"
+BASE_RPC_URL="${BASE_RPC_URL:-}"
 DOCKER_SOCK="/var/run/docker.sock"
+ROLLUP_CONTRACT="0x6B78C90257A7a12a3E91EbF3CAFcc7E518FAcD38"
+TOTAL_ASSERTIONS=""
 
 mkdir -p "$STATUS_DIR" "$DATA_DIR"
 
@@ -27,6 +30,25 @@ get_block() {
     hex=$(echo "$result" | jq -r '.result // empty' 2>/dev/null)
     if [ -n "$hex" ]; then
       printf "%d" "$hex" 2>/dev/null || echo ""
+    fi
+  fi
+}
+
+# Query total assertion count from rollup contract on Base (latestNodeCreated)
+get_total_assertions() {
+  if [ -n "$TOTAL_ASSERTIONS" ]; then
+    echo "$TOTAL_ASSERTIONS"
+    return
+  fi
+  # latestNodeCreated() selector = 0x7ba9534a
+  result=$(curl -sf -X POST "$BASE_RPC_URL" \
+    -H "Content-Type: application/json" \
+    -d "{\"jsonrpc\":\"2.0\",\"method\":\"eth_call\",\"params\":[{\"to\":\"$ROLLUP_CONTRACT\",\"data\":\"0x7ba9534a\"},\"latest\"],\"id\":1}" 2>/dev/null)
+  if [ $? -eq 0 ] && [ -n "$result" ]; then
+    hex=$(echo "$result" | jq -r '.result // empty' 2>/dev/null)
+    if [ -n "$hex" ]; then
+      TOTAL_ASSERTIONS=$(printf "%d" "$hex" 2>/dev/null || echo "")
+      echo "$TOTAL_ASSERTIONS"
     fi
   fi
 }
@@ -200,7 +222,14 @@ while true; do
         SCAN_PCT=$((CURRENT_BATCH * 100 / TOTAL_BATCHES))
         write_status "{\"phase\":\"scanning\",\"scanStep\":\"batches\",\"currentBatch\":$CURRENT_BATCH,\"totalBatches\":$TOTAL_BATCHES,\"knownBatches\":$OUR_BATCHES,\"newBatches\":$NEW_BATCHES,\"scanProgress\":$SCAN_PCT,\"localBlock\":$LOCAL_BLOCK,\"officialBlock\":$OFFICIAL_BLOCK,\"blockDiff\":$DIFF,\"updatedAt\":\"$UPDATED\"}"
       elif [ "${ASSERTION_NODE:-0}" -gt 0 ] 2>/dev/null; then
-        write_status "{\"phase\":\"scanning\",\"scanStep\":\"assertions\",\"assertionNode\":$ASSERTION_NODE,\"currentBatch\":0,\"totalBatches\":0,\"scanProgress\":0,\"localBlock\":$LOCAL_BLOCK,\"officialBlock\":$OFFICIAL_BLOCK,\"blockDiff\":$DIFF,\"updatedAt\":\"$UPDATED\"}"
+        ASSERT_TOTAL=$(get_total_assertions)
+        ASSERT_TOTAL=${ASSERT_TOTAL:-0}
+        if [ "$ASSERT_TOTAL" -gt 0 ] 2>/dev/null; then
+          ASSERT_PCT=$((ASSERTION_NODE * 100 / ASSERT_TOTAL))
+        else
+          ASSERT_PCT=0
+        fi
+        write_status "{\"phase\":\"scanning\",\"scanStep\":\"assertions\",\"assertionNode\":$ASSERTION_NODE,\"totalAssertions\":$ASSERT_TOTAL,\"assertionProgress\":$ASSERT_PCT,\"currentBatch\":0,\"totalBatches\":0,\"scanProgress\":0,\"localBlock\":$LOCAL_BLOCK,\"officialBlock\":$OFFICIAL_BLOCK,\"blockDiff\":$DIFF,\"updatedAt\":\"$UPDATED\"}"
       else
         write_status "{\"phase\":\"scanning\",\"scanStep\":\"starting\",\"currentBatch\":0,\"totalBatches\":0,\"scanProgress\":0,\"localBlock\":$LOCAL_BLOCK,\"officialBlock\":$OFFICIAL_BLOCK,\"blockDiff\":$DIFF,\"updatedAt\":\"$UPDATED\"}"
       fi
