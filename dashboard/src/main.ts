@@ -1,6 +1,7 @@
 import './style.css'
 
 const POLL_INTERVAL = 2000
+const LERP_INTERVAL = 50
 const PHASES = ['downloading', 'extracting', 'starting', 'syncing', 'synced'] as const
 
 type Phase = typeof PHASES[number] | 'installing' | 'error'
@@ -8,6 +9,8 @@ type Phase = typeof PHASES[number] | 'installing' | 'error'
 interface Status {
   phase: Phase
   progress?: number
+  downloadedBytes?: number
+  totalBytes?: number
   downloadedGB?: number
   totalGB?: number
   localBlock?: number
@@ -19,6 +22,41 @@ interface Status {
 }
 
 let status: Status = { phase: 'installing' }
+
+// Smooth animation state
+let displayBytes = 0
+let targetBytes = 0
+let totalBytes = 0
+let lerpHandle = 0
+
+function startLerp() {
+  if (lerpHandle) return
+  lerpHandle = window.setInterval(() => {
+    if (Math.abs(targetBytes - displayBytes) < 1000) {
+      displayBytes = targetBytes
+    } else {
+      displayBytes += (targetBytes - displayBytes) * 0.15
+    }
+    updateDownloadDisplay()
+  }, LERP_INTERVAL)
+}
+
+function updateDownloadDisplay() {
+  const el = document.getElementById('dl-progress')
+  if (!el) return
+
+  const pct = totalBytes > 0 ? (displayBytes / totalBytes) * 100 : 0
+  const dlGB = displayBytes / 1_073_741_824
+  const tGB = totalBytes / 1_073_741_824
+
+  const fill = el.querySelector<HTMLDivElement>('.fill')
+  const sizeLabel = el.querySelector<HTMLSpanElement>('.dl-size')
+  const pctLabel = el.querySelector<HTMLSpanElement>('.dl-pct')
+
+  if (fill) fill.style.width = `${pct}%`
+  if (sizeLabel) sizeLabel.textContent = `${dlGB.toFixed(2)} / ${tGB.toFixed(1)} GB`
+  if (pctLabel) pctLabel.textContent = `${pct.toFixed(1)}%`
+}
 
 async function fetchStatus(): Promise<Status> {
   const res = await fetch('/api/status')
@@ -56,17 +94,14 @@ function stepperHTML(current: Phase): string {
   }).join('')}</div>`
 }
 
-function downloadingHTML(s: Status): string {
-  const pct = s.progress ?? 0
-  const dlGB = s.downloadedGB ?? 0
-  const totalGB = s.totalGB ?? 32
+function downloadingHTML(): string {
   return `
     <div class="phase-title">Downloading snapshot</div>
-    <div class="progress-bar-wrapper">
-      <div class="progress-bar"><div class="fill" style="width: ${pct}%"></div></div>
+    <div class="progress-bar-wrapper" id="dl-progress">
+      <div class="progress-bar"><div class="fill" style="width: 0%"></div></div>
       <div class="progress-info">
-        <span>${dlGB} / ${totalGB} GB</span>
-        <span>${pct}%</span>
+        <span class="dl-size">0.00 / 0.0 GB</span>
+        <span class="dl-pct">0.0%</span>
       </div>
     </div>
   `
@@ -127,7 +162,7 @@ function errorHTML(s: Status): string {
 function phaseContent(s: Status): string {
   switch (s.phase) {
     case 'installing': return `<div class="spinner"></div><div class="phase-title">Initializing</div>`
-    case 'downloading': return downloadingHTML(s)
+    case 'downloading': return downloadingHTML()
     case 'extracting': return extractingHTML()
     case 'starting': return startingHTML(s)
     case 'syncing': return blocksHTML(s)
@@ -137,35 +172,58 @@ function phaseContent(s: Status): string {
   }
 }
 
+let lastPhase: Phase | null = null
+
 function render() {
   const activePhase = status.phase === 'installing' ? 'downloading' : status.phase
   const time = status.updatedAt
     ? new Date(status.updatedAt).toLocaleTimeString()
     : '\u2014'
 
-  document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
-    <header>
-      <h1><span>Intuition L3</span> \u2014 Replica Node</h1>
-      <div class="badge">Chain 1155 \u00b7 Arbitrum Nitro</div>
-    </header>
+  // Only rebuild DOM when phase changes, otherwise update in-place
+  if (lastPhase !== status.phase) {
+    lastPhase = status.phase
+    document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
+      <header>
+        <h1><span>Intuition L3</span> \u2014 Replica Node</h1>
+        <div class="badge">Chain 1155 \u00b7 Arbitrum Nitro</div>
+      </header>
 
-    ${stepperHTML(activePhase as Phase)}
+      ${stepperHTML(activePhase as Phase)}
 
-    <div class="phase-content">
-      ${phaseContent(status)}
-    </div>
+      <div class="phase-content">
+        ${phaseContent(status)}
+      </div>
 
-    <div class="footer">
-      Updated ${time}
-    </div>
-  `
+      <div class="footer">
+        Updated <span id="update-time">${time}</span>
+      </div>
+    `
+  }
+
+  // Update time
+  const timeEl = document.getElementById('update-time')
+  if (timeEl) timeEl.textContent = time
+
+  // Update download animation target
+  if (status.phase === 'downloading') {
+    targetBytes = status.downloadedBytes ?? 0
+    totalBytes = status.totalBytes ?? 34_000_000_000
+    startLerp()
+    updateDownloadDisplay()
+  } else {
+    if (lerpHandle) {
+      clearInterval(lerpHandle)
+      lerpHandle = 0
+    }
+  }
 }
 
 async function poll() {
   try {
     status = await fetchStatus()
   } catch {
-    // keep last known status, don't overwrite with error on transient failures
+    // keep last known status
   }
   render()
 }
