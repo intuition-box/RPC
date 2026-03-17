@@ -2,7 +2,7 @@ import './style.css'
 
 const POLL_INTERVAL = 2000
 const LERP_INTERVAL = 50
-const PHASES = ['downloading', 'extracting', 'starting', 'syncing', 'synced'] as const
+const PHASES = ['downloading', 'extracting', 'starting', 'scanning', 'syncing', 'synced'] as const
 
 type Phase = typeof PHASES[number] | 'installing' | 'error'
 
@@ -17,6 +17,10 @@ interface Status {
   officialBlock?: number
   blockDiff?: number
   blocksPerMinute?: number
+  currentBatch?: number
+  totalBatches?: number
+  knownBatches?: number
+  scanProgress?: number
   message?: string
   updatedAt?: string
 }
@@ -147,6 +151,36 @@ function startingHTML(s: Status): string {
   `
 }
 
+function scanningHTML(s: Status): string {
+  const current = s.currentBatch ?? 0
+  const total = s.totalBatches ?? 0
+  const known = s.knownBatches ?? 0
+  const pct = s.scanProgress ?? 0
+
+  return `
+    <div class="phase-title">Scanning sequencer batches</div>
+    <div class="phase-message scan-explain">
+      The node verifies all historical batches posted to Base before processing new blocks.
+      ${known > 0 ? `The snapshot contains ${fmt(known)} batches \u2014 scanning to find ${fmt(total - known)} new ones.` : ''}
+    </div>
+    ${total > 0 ? `
+      <div class="progress-bar-wrapper">
+        <div class="progress-bar"><div class="fill" style="width: ${pct}%"></div></div>
+        <div class="progress-info">
+          <span>Batch ${fmt(current)} / ${fmt(total)}</span>
+          <span>${pct}%</span>
+        </div>
+      </div>
+    ` : `
+      <div class="spinner"></div>
+      <div class="phase-message">Reading batches from Base...</div>
+    `}
+    <div class="scan-blocks">
+      Block height: <span class="val behind">${fmt(s.localBlock)}</span> / ${fmt(s.officialBlock)}
+    </div>
+  `
+}
+
 function blocksHTML(s: Status): string {
   const isSynced = s.phase === 'synced'
   const diffClass = (s.blockDiff ?? 0) === 0 ? 'zero' : 'behind'
@@ -189,6 +223,7 @@ function phaseContent(s: Status): string {
     case 'downloading': return downloadingHTML()
     case 'extracting': return extractingHTML()
     case 'starting': return startingHTML(s)
+    case 'scanning': return scanningHTML(s)
     case 'syncing': return blocksHTML(s)
     case 'synced': return blocksHTML(s)
     case 'error': return errorHTML(s)
@@ -228,6 +263,18 @@ function render() {
   // Update time
   const timeEl = document.getElementById('update-time')
   if (timeEl) timeEl.textContent = time
+
+  // Update scanning display in-place
+  if (status.phase === 'scanning') {
+    const scanContent = document.querySelector('.phase-content')
+    if (scanContent) scanContent.innerHTML = scanningHTML(status)
+  }
+
+  // Update syncing/synced display in-place
+  if (status.phase === 'syncing' || status.phase === 'synced') {
+    const syncContent = document.querySelector('.phase-content')
+    if (syncContent) syncContent.innerHTML = blocksHTML(status)
+  }
 
   // Update download animation target
   if (status.phase === 'downloading') {

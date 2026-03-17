@@ -4,6 +4,7 @@ services:
     volumes:
       - datadir:/data
       - status:/status
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
       - SNAPSHOT_URL=${SNAPSHOT_URL:-https://constellationlabs-dashboard-beta.s3.amazonaws.com/intuition-03-11-2026.tar.gz}
       - OFFICIAL_RPC=https://rpc.intuition.systems/http

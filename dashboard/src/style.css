@@ -198,6 +198,22 @@ header .badge {
   margin-top: 0.4rem;
 }
 
+.scan-explain {
+  max-width: 400px;
+  line-height: 1.5;
+  margin-bottom: 1rem;
+}
+
+.scan-blocks {
+  font-size: 0.7rem;
+  color: var(--dim);
+  margin-top: 1rem;
+}
+
+.scan-blocks .val {
+  font-weight: 600;
+}
+
 .dl-eta {
   font-size: 0.7rem;
   color: var(--dim);

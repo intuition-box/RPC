@@ -8,6 +8,7 @@ READY_FILE="$DATA_DIR/.ready"
 SNAPSHOT_URL="${SNAPSHOT_URL:-https://constellationlabs-dashboard-beta.s3.amazonaws.com/intuition-03-11-2026.tar.gz}"
 OFFICIAL_RPC="${OFFICIAL_RPC:-https://rpc.intuition.systems/http}"
 NITRO_RPC="${NITRO_RPC:-http://nitro:8545}"
+DOCKER_SOCK="/var/run/docker.sock"
 
 mkdir -p "$STATUS_DIR" "$DATA_DIR"
 
@@ -27,6 +28,43 @@ get_block() {
     if [ -n "$hex" ]; then
       printf "%d" "$hex" 2>/dev/null || echo ""
     fi
+  fi
+}
+
+# Find nitro container ID via Docker socket
+get_nitro_container_id() {
+  curl -sf --unix-socket "$DOCKER_SOCK" "http://localhost/containers/json" 2>/dev/null \
+    | jq -r '.[] | select(.Image | contains("nitro")) | .Id' 2>/dev/null \
+    | head -1
+}
+
+# Read batch scan progress from nitro's logs via Docker socket
+get_batch_progress() {
+  NITRO_ID=$(get_nitro_container_id)
+  if [ -z "$NITRO_ID" ]; then
+    echo ""
+    return
+  fi
+
+  # Get last 200 lines of logs, look for batch info
+  LOGS=$(curl -sf --unix-socket "$DOCKER_SOCK" \
+    "http://localhost/containers/$NITRO_ID/logs?stderr=true&stdout=true&tail=200" 2>/dev/null \
+    | tr -d '\000-\010\016-\037' || true)
+
+  # Extract "Expecting to find sequencer batches" line for total
+  TOTAL_BATCHES=$(echo "$LOGS" | grep -o 'checkingBatchCount=[0-9]*' | tail -1 | cut -d= -f2)
+  OUR_BATCHES=$(echo "$LOGS" | grep -o 'ourLatestBatchCount=[0-9]*' | tail -1 | cut -d= -f2)
+
+  # Extract latest "Found sequencer batches" for current position
+  CURRENT_BATCH=$(echo "$LOGS" | grep -o 'firstSequenceNumber=[0-9]*' | tail -1 | cut -d= -f2)
+
+  # Check if we're getting new batches (not just duplicates)
+  NEW_BATCHES=$(echo "$LOGS" | grep 'Found sequencer batches' | tail -1 | grep -o 'newBatchesCount=[0-9]*' | cut -d= -f2)
+
+  if [ -n "$TOTAL_BATCHES" ] && [ -n "$CURRENT_BATCH" ]; then
+    echo "${CURRENT_BATCH}:${TOTAL_BATCHES}:${OUR_BATCHES:-0}:${NEW_BATCHES:-0}"
+  else
+    echo ""
   fi
 }
 
@@ -109,12 +147,14 @@ fi
 echo "Entering monitoring loop"
 PREV_BLOCK=0
 PREV_TIME=$(date +%s)
+SNAPSHOT_BLOCK=""
 
 while true; do
   sleep 5
 
   LOCAL_BLOCK=$(get_block "$NITRO_RPC")
   OFFICIAL_BLOCK=$(get_block "$OFFICIAL_RPC")
+  UPDATED=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
   if [ -z "$LOCAL_BLOCK" ]; then
     write_status '{"phase":"starting","message":"Waiting for node to respond..."}'
@@ -125,15 +165,43 @@ while true; do
     OFFICIAL_BLOCK=0
   fi
 
+  # Remember the first block we see (snapshot block)
+  if [ -z "$SNAPSHOT_BLOCK" ]; then
+    SNAPSHOT_BLOCK=$LOCAL_BLOCK
+  fi
+
   DIFF=$((OFFICIAL_BLOCK - LOCAL_BLOCK))
   if [ "$DIFF" -lt 0 ]; then
     DIFF=0
   fi
 
+  # Detect batch scanning phase:
+  # Block is stuck at snapshot height (or 0) while node scans historical batches on Base
+  if [ "$LOCAL_BLOCK" -eq "$SNAPSHOT_BLOCK" ] && [ "$DIFF" -gt 10 ]; then
+    BATCH_INFO=$(get_batch_progress)
+    if [ -n "$BATCH_INFO" ]; then
+      CURRENT_BATCH=$(echo "$BATCH_INFO" | cut -d: -f1)
+      TOTAL_BATCHES=$(echo "$BATCH_INFO" | cut -d: -f2)
+      OUR_BATCHES=$(echo "$BATCH_INFO" | cut -d: -f3)
+      NEW_BATCHES=$(echo "$BATCH_INFO" | cut -d: -f4)
+
+      if [ "$TOTAL_BATCHES" -gt 0 ] 2>/dev/null; then
+        SCAN_PCT=$((CURRENT_BATCH * 100 / TOTAL_BATCHES))
+      else
+        SCAN_PCT=0
+      fi
+
+      write_status "{\"phase\":\"scanning\",\"currentBatch\":$CURRENT_BATCH,\"totalBatches\":$TOTAL_BATCHES,\"knownBatches\":$OUR_BATCHES,\"newBatches\":$NEW_BATCHES,\"scanProgress\":$SCAN_PCT,\"localBlock\":$LOCAL_BLOCK,\"officialBlock\":$OFFICIAL_BLOCK,\"blockDiff\":$DIFF,\"updatedAt\":\"$UPDATED\"}"
+    else
+      write_status "{\"phase\":\"scanning\",\"currentBatch\":0,\"totalBatches\":0,\"scanProgress\":0,\"localBlock\":$LOCAL_BLOCK,\"officialBlock\":$OFFICIAL_BLOCK,\"blockDiff\":$DIFF,\"message\":\"Scanning sequencer batches on Base...\",\"updatedAt\":\"$UPDATED\"}"
+    fi
+    continue
+  fi
+
   # Calculate blocks per minute
   NOW=$(date +%s)
   ELAPSED=$((NOW - PREV_TIME))
-  if [ "$ELAPSED" -gt 0 ] && [ "$PREV_BLOCK" -gt 0 ]; then
+  if [ "$ELAPSED" -gt 0 ] && [ "$PREV_BLOCK" -gt 0 ] && [ "$LOCAL_BLOCK" -gt "$PREV_BLOCK" ]; then
     BLOCKS_GAINED=$((LOCAL_BLOCK - PREV_BLOCK))
     BPM=$((BLOCKS_GAINED * 60 / ELAPSED))
   else
@@ -148,8 +216,6 @@ while true; do
   else
     PHASE="syncing"
   fi
-
-  UPDATED=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
   write_status "{\"phase\":\"$PHASE\",\"localBlock\":$LOCAL_BLOCK,\"officialBlock\":$OFFICIAL_BLOCK,\"blockDiff\":$DIFF,\"blocksPerMinute\":$BPM,\"updatedAt\":\"$UPDATED\"}"
 done
