@@ -1,6 +1,8 @@
 services:
   init:
     build: ./init
+    labels:
+      - "traefik.enable=false"
     volumes:
       - datadir:/data
       - status:/status
@@ -17,6 +19,8 @@ services:
       context: .
       dockerfile: nitro/Dockerfile
     platform: linux/amd64
+    labels:
+      - "traefik.enable=false"
     volumes:
       - datadir:/home/user/.arbitrum
     entrypoint:
