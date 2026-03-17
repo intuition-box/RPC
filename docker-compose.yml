@@ -1,0 +1,53 @@
+services:
+  init:
+    build: ./init
+    volumes:
+      - datadir:/data
+      - status:/status
+    environment:
+      - SNAPSHOT_URL=${SNAPSHOT_URL:-https://constellationlabs-dashboard-beta.s3.amazonaws.com/intuition-03-11-2026.tar.gz}
+      - OFFICIAL_RPC=https://rpc.intuition.systems/http
+      - NITRO_RPC=http://nitro:8545
+    healthcheck:
+      test: ["CMD", "test", "-f", "/data/.ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 2000
+      start_period: 5s
+    restart: unless-stopped
+
+  nitro:
+    image: public.ecr.aws/i6b2w2n6/nitro-node:v3.7.1
+    platform: linux/amd64
+    depends_on:
+      init:
+        condition: service_healthy
+    volumes:
+      - datadir:/home/user/.arbitrum
+      - ./nodeConfig.json:/config/nodeConfig.json:ro
+    entrypoint:
+      - /usr/local/bin/nitro
+      - --conf.file=/config/nodeConfig.json
+      - --node.staker.enable
+      - --node.staker.strategy=Watchtower
+      - --execution.forwarding-target=wss://rpc.intuition.systems/ws
+      - --node.feed.input.url=wss://rpc.intuition.systems/feed
+      - --parent-chain.connection.url=${BASE_RPC_URL}
+      - --node.dangerous.disable-blob-reader
+      - --node.data-availability.rest-aggregator.urls=https://rpc.intuition.systems/rest-aggregator
+      - --node.data-availability.parent-chain-node-url=${BASE_RPC_URL}
+    restart: unless-stopped
+
+  gateway:
+    build:
+      context: .
+      dockerfile: gateway/Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      - init
+    restart: unless-stopped
+
+volumes:
+  datadir:
+  status:
