@@ -160,11 +160,17 @@ else
 
   # Handle nested directory structure (snapshot extracts to mnt/datadir/intuition/)
   # Nitro expects data at /home/user/.arbitrum/intuition/ which maps to $DATA_DIR/intuition/
+  # Remove any existing intuition dir first to avoid nesting (mv into existing dir)
+  SNAPSHOT_SRC=""
   if [ -d "$DATA_DIR/mnt/datadir/intuition" ]; then
-    mv "$DATA_DIR/mnt/datadir/intuition" "$DATA_DIR/intuition"
-    rm -rf "$DATA_DIR/mnt"
+    SNAPSHOT_SRC="$DATA_DIR/mnt/datadir/intuition"
   elif [ -d "$DATA_DIR/mnt/datadir" ]; then
-    mv "$DATA_DIR/mnt/datadir"/* "$DATA_DIR/"
+    SNAPSHOT_SRC="$DATA_DIR/mnt/datadir"
+  fi
+
+  if [ -n "$SNAPSHOT_SRC" ]; then
+    rm -rf "$DATA_DIR/intuition"
+    mv "$SNAPSHOT_SRC" "$DATA_DIR/intuition"
     rm -rf "$DATA_DIR/mnt"
   fi
 
