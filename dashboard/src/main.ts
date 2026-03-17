@@ -21,6 +21,8 @@ interface Status {
   totalBatches?: number
   knownBatches?: number
   scanProgress?: number
+  scanStep?: 'assertions' | 'batches' | 'starting'
+  assertionNode?: number
   message?: string
   updatedAt?: string
 }
@@ -156,14 +158,26 @@ function scanningHTML(s: Status): string {
   const total = s.totalBatches ?? 0
   const known = s.knownBatches ?? 0
   const pct = s.scanProgress ?? 0
+  const step = s.scanStep ?? 'starting'
 
-  return `
-    <div class="phase-title">Scanning sequencer batches</div>
-    <div class="phase-message scan-explain">
-      The node verifies all historical batches posted to Base before processing new blocks.
-      ${known > 0 ? `The snapshot contains ${fmt(known)} batches \u2014 scanning to find ${fmt(total - known)} new ones.` : ''}
-    </div>
-    ${total > 0 ? `
+  let stepContent = ''
+
+  if (step === 'assertions') {
+    stepContent = `
+      <div class="spinner"></div>
+      <div class="phase-title">Validating rollup assertions</div>
+      <div class="phase-message scan-explain">
+        Verifying assertions posted to Base by the rollup validators.
+        ${s.assertionNode ? `Assertion ${fmt(s.assertionNode)} verified...` : ''}
+      </div>
+    `
+  } else if (step === 'batches' && total > 0) {
+    stepContent = `
+      <div class="phase-title">Scanning sequencer batches</div>
+      <div class="phase-message scan-explain">
+        Verifying historical batches posted to Base.
+        ${known > 0 ? `The snapshot contains ${fmt(known)} batches \u2014 scanning to find ${fmt(total - known)} new ones.` : ''}
+      </div>
       <div class="progress-bar-wrapper">
         <div class="progress-bar"><div class="fill" style="width: ${pct}%"></div></div>
         <div class="progress-info">
@@ -171,10 +185,17 @@ function scanningHTML(s: Status): string {
           <span>${pct}%</span>
         </div>
       </div>
-    ` : `
+    `
+  } else {
+    stepContent = `
       <div class="spinner"></div>
-      <div class="phase-message">Reading batches from Base...</div>
-    `}
+      <div class="phase-title">Scanning chain data</div>
+      <div class="phase-message scan-explain">Reading from Base...</div>
+    `
+  }
+
+  return `
+    ${stepContent}
     <div class="scan-blocks">
       Block height: <span class="val behind">${fmt(s.localBlock)}</span> / ${fmt(s.officialBlock)}
     </div>

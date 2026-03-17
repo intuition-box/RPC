@@ -61,8 +61,14 @@ get_batch_progress() {
   # Check if we're getting new batches (not just duplicates)
   NEW_BATCHES=$(echo "$LOGS" | grep 'Found sequencer batches' | tail -1 | grep -o 'newBatchesCount=[0-9]*' | cut -d= -f2)
 
+  # Also check assertion validation progress
+  ASSERTION_NODE=$(echo "$LOGS" | grep -o 'node=[0-9]*' | tail -1 | cut -d= -f2)
+
   if [ -n "$TOTAL_BATCHES" ] && [ -n "$CURRENT_BATCH" ]; then
-    echo "${CURRENT_BATCH}:${TOTAL_BATCHES}:${OUR_BATCHES:-0}:${NEW_BATCHES:-0}"
+    echo "${CURRENT_BATCH}:${TOTAL_BATCHES}:${OUR_BATCHES:-0}:${NEW_BATCHES:-0}:${ASSERTION_NODE:-0}"
+  elif [ -n "$ASSERTION_NODE" ]; then
+    # Still in assertion validation, no batch data yet
+    echo "0:0:0:0:${ASSERTION_NODE}"
   else
     echo ""
   fi
@@ -188,16 +194,18 @@ while true; do
       TOTAL_BATCHES=$(echo "$BATCH_INFO" | cut -d: -f2)
       OUR_BATCHES=$(echo "$BATCH_INFO" | cut -d: -f3)
       NEW_BATCHES=$(echo "$BATCH_INFO" | cut -d: -f4)
+      ASSERTION_NODE=$(echo "$BATCH_INFO" | cut -d: -f5)
 
       if [ "$TOTAL_BATCHES" -gt 0 ] 2>/dev/null; then
         SCAN_PCT=$((CURRENT_BATCH * 100 / TOTAL_BATCHES))
+        write_status "{\"phase\":\"scanning\",\"scanStep\":\"batches\",\"currentBatch\":$CURRENT_BATCH,\"totalBatches\":$TOTAL_BATCHES,\"knownBatches\":$OUR_BATCHES,\"newBatches\":$NEW_BATCHES,\"scanProgress\":$SCAN_PCT,\"localBlock\":$LOCAL_BLOCK,\"officialBlock\":$OFFICIAL_BLOCK,\"blockDiff\":$DIFF,\"updatedAt\":\"$UPDATED\"}"
+      elif [ "${ASSERTION_NODE:-0}" -gt 0 ] 2>/dev/null; then
+        write_status "{\"phase\":\"scanning\",\"scanStep\":\"assertions\",\"assertionNode\":$ASSERTION_NODE,\"currentBatch\":0,\"totalBatches\":0,\"scanProgress\":0,\"localBlock\":$LOCAL_BLOCK,\"officialBlock\":$OFFICIAL_BLOCK,\"blockDiff\":$DIFF,\"updatedAt\":\"$UPDATED\"}"
       else
-        SCAN_PCT=0
+        write_status "{\"phase\":\"scanning\",\"scanStep\":\"starting\",\"currentBatch\":0,\"totalBatches\":0,\"scanProgress\":0,\"localBlock\":$LOCAL_BLOCK,\"officialBlock\":$OFFICIAL_BLOCK,\"blockDiff\":$DIFF,\"updatedAt\":\"$UPDATED\"}"
       fi
-
-      write_status "{\"phase\":\"scanning\",\"currentBatch\":$CURRENT_BATCH,\"totalBatches\":$TOTAL_BATCHES,\"knownBatches\":$OUR_BATCHES,\"newBatches\":$NEW_BATCHES,\"scanProgress\":$SCAN_PCT,\"localBlock\":$LOCAL_BLOCK,\"officialBlock\":$OFFICIAL_BLOCK,\"blockDiff\":$DIFF,\"updatedAt\":\"$UPDATED\"}"
     else
-      write_status "{\"phase\":\"scanning\",\"currentBatch\":0,\"totalBatches\":0,\"scanProgress\":0,\"localBlock\":$LOCAL_BLOCK,\"officialBlock\":$OFFICIAL_BLOCK,\"blockDiff\":$DIFF,\"message\":\"Scanning sequencer batches on Base...\",\"updatedAt\":\"$UPDATED\"}"
+      write_status "{\"phase\":\"scanning\",\"scanStep\":\"starting\",\"currentBatch\":0,\"totalBatches\":0,\"scanProgress\":0,\"localBlock\":$LOCAL_BLOCK,\"officialBlock\":$OFFICIAL_BLOCK,\"blockDiff\":$DIFF,\"updatedAt\":\"$UPDATED\"}"
     fi
     continue
   fi
