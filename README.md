@@ -73,14 +73,16 @@ Ethereum L1 --> Base L2 (8453) --> Intuition L3 (1155)
 
                  +-----------+
   Browser -----> |  gateway   | :80
-                 |  (nginx)   |
+                 |  (node.js) |
                  +-----+------+
                        |
           +------------+------------+
           |            |            |
-     /    |      /http |      /ws   |     /api/status
+     /    |   /http/KEY |   /ws/KEY  |     /api/status
           |            |            |          |
    static files   nitro:8545   nitro:8546   init:9000
+          |
+      + API key check + request logging (SQLite)
                        |
                   Base RPC
               (parent chain)
@@ -89,14 +91,42 @@ Ethereum L1 --> Base L2 (8453) --> Intuition L3 (1155)
 **Services:**
 - **init** -- Downloads snapshot, tracks lifecycle, serves status API
 - **nitro** -- Arbitrum Nitro node (official image)
-- **gateway** -- Nginx reverse proxy + dashboard static files
+- **gateway** -- Node.js proxy + dashboard static files + API key auth
 
 ## Environment Variables
 
-| Variable | Required | Default |
-|---|---|---|
-| `BASE_RPC_URL` | Yes | -- |
-| `SNAPSHOT_URL` | No | S3 snapshot URL (pre-configured) |
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `BASE_RPC_URL` | Yes | -- | Base mainnet RPC URL |
+| `API_KEY` | No | -- | Single API key for simple auth |
+| `SNAPSHOT_URL` | No | S3 snapshot URL | Override snapshot location |
+
+## API Key Authentication
+
+Three modes, automatic based on configuration:
+
+**Open access** (default) -- No `API_KEY` set, no keys in database. Anyone can query.
+
+**Single key** -- Set `API_KEY=your-secret` in env vars. RPC accessible at:
+- `https://yourdomain.com/http/your-secret`
+- `https://yourdomain.com/ws/your-secret`
+
+**Multi-user** -- Manage keys via CLI on the gateway container:
+
+```bash
+# Enter the gateway container
+docker exec -it <gateway-container> sh
+
+# Manage keys
+node src/cli.js add "builder-name"     # Create a key
+node src/cli.js list                   # List all keys + usage stats
+node src/cli.js revoke <key>           # Revoke a key
+node src/cli.js rotate <key>           # Replace with a new key
+node src/cli.js stats                  # Global request stats
+node src/cli.js stats <key>            # Per-key stats
+```
+
+Usage stats tracked per key: total requests, this month, today, last hour.
 
 ## Node Lifecycle
 

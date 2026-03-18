@@ -5,6 +5,13 @@ RUN npm ci
 COPY dashboard/ .
 RUN npm run build
 
-FROM nginx:alpine
-COPY --from=dashboard /app/dist /usr/share/nginx/html
-COPY gateway/nginx.conf /etc/nginx/conf.d/default.conf
+FROM node:22-alpine
+RUN apk add --no-cache python3 make g++
+WORKDIR /app
+COPY gateway/package.json gateway/package-lock.json* ./
+RUN npm ci --production && apk del python3 make g++
+COPY gateway/src ./src
+COPY --from=dashboard /app/dist ./public
+ENV STATIC_DIR=/app/public
+EXPOSE 80
+CMD ["node", "src/index.js"]
