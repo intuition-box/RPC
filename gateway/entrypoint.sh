@@ -31,11 +31,12 @@ if [ -f "$KEYS_FILE" ]; then
   done
 fi
 
-# If no keys configured, allow everything
+# If no keys configured, allow everything. Otherwise reject unknown keys.
 if [ "$KEY_COUNT" -eq 0 ]; then
   echo '# No keys configured - open access' > "$KEYS_MAP"
-  echo '"" 1;' >> "$KEYS_MAP"
   echo 'default 1;' >> "$KEYS_MAP"
+else
+  echo 'default 0;' >> "$KEYS_MAP"
 fi
 
 echo "Auth mode: $([ $KEY_COUNT -gt 0 ] && echo "$KEY_COUNT key(s) configured" || echo "open access")"
