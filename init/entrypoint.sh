@@ -117,12 +117,24 @@ start_status_server &
 
 # --- Lifecycle ---
 
-# Check if data already exists (either from snapshot or previous run)
-if [ -d "$DATA_DIR/intuition" ] && [ "$(ls -A $DATA_DIR/intuition 2>/dev/null)" ]; then
-  echo "Existing data found, skipping download"
+# Check if data already exists with meaningful chain data (>10GB = real snapshot, not fresh nitro)
+CHAINDATA_SIZE=0
+if [ -d "$DATA_DIR/intuition/nitro/l2chaindata" ]; then
+  CHAINDATA_SIZE=$(du -s "$DATA_DIR/intuition/nitro/l2chaindata" 2>/dev/null | awk '{print $1}')
+  CHAINDATA_SIZE=${CHAINDATA_SIZE:-0}
+fi
+
+if [ "$CHAINDATA_SIZE" -gt 10000000 ] 2>/dev/null; then
+  echo "Existing chain data found ($(($CHAINDATA_SIZE / 1048576)) GB), skipping download"
   write_status '{"phase":"starting","message":"Existing data found, starting node..."}'
   touch "$READY_FILE"
 else
+  # Remove any fresh nitro data (created before snapshot was ready)
+  if [ -d "$DATA_DIR/intuition" ]; then
+    echo "Removing incomplete chain data, will restore from snapshot"
+    rm -rf "$DATA_DIR/intuition"
+  fi
+
   # Download snapshot
   echo "Downloading snapshot from $SNAPSHOT_URL"
 
