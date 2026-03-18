@@ -14,6 +14,7 @@ const API_KEY = process.env.API_KEY || '';
 const STATIC_DIR = process.env.STATIC_DIR || '/app/public';
 
 const proxy = createProxyServer({ ws: true, changeOrigin: true });
+let lastStatus = '';
 proxy.on('error', (err, req, res) => {
   if (res.writeHead) {
     res.writeHead(502, { 'Content-Type': 'application/json' });
@@ -90,17 +91,23 @@ const server = createServer(async (req, res) => {
     return serveStatic(req, res);
   }
 
-  // Status API - always public, fetch directly (nc server is flaky with proxying)
+  // Status API - always public, fetch directly with retry (nc server handles one conn at a time)
   if (pathname === '/api/status') {
-    try {
-      const statusRes = await fetch(`${INIT_STATUS}/api/status`);
-      const body = await statusRes.text();
-      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache', 'Access-Control-Allow-Origin': '*' });
-      res.end(body);
-    } catch {
-      res.writeHead(502, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ phase: 'starting', message: 'Status unavailable' }));
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const statusRes = await fetch(`${INIT_STATUS}/api/status`, { signal: AbortSignal.timeout(2000) });
+        const body = await statusRes.text();
+        lastStatus = body;
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache', 'Access-Control-Allow-Origin': '*' });
+        res.end(body);
+        return;
+      } catch {
+        if (attempt < 2) await new Promise(r => setTimeout(r, 300));
+      }
     }
+    // Return last known status or fallback
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache', 'Access-Control-Allow-Origin': '*' });
+    res.end(lastStatus || JSON.stringify({ phase: 'starting', message: 'Connecting...' }));
     return;
   }
 
