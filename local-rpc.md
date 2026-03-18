@@ -1,6 +1,6 @@
 # Local RPC — Personal Setup
 
-Run a personal Intuition L3 RPC node on your machine. No dashboard, no API keys — just the node.
+Run a personal Intuition L3 RPC node on your machine. No dashboard, no API key protected gateway — one simple RPC endpoint in local.
 
 ## Prerequisites
 
