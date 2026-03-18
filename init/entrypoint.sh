@@ -144,20 +144,29 @@ else
 
   write_status "{\"phase\":\"downloading\",\"progress\":0,\"totalBytes\":$TOTAL_BYTES}"
 
-  # Start download in background
-  curl -L -o "$DATA_DIR/snapshot.tar.gz" "$SNAPSHOT_URL" 2>/dev/null &
+  # Convert HTTPS URL to S3 URI for aws cli multipart download
+  # https://bucket.s3.amazonaws.com/key -> s3://bucket/key
+  S3_URI=$(echo "$SNAPSHOT_URL" | sed -E 's|https://([^.]+)\.s3\.amazonaws\.com/(.+)|s3://\1/\2|')
+  if echo "$S3_URI" | grep -q '^s3://'; then
+    echo "Using aws s3 cp (multipart) from $S3_URI"
+    aws s3 cp "$S3_URI" "$DATA_DIR/snapshot.tar.gz" --no-sign-request --no-progress 2>/dev/null &
+  else
+    echo "Using curl from $SNAPSHOT_URL"
+    curl -L -o "$DATA_DIR/snapshot.tar.gz" "$SNAPSHOT_URL" 2>/dev/null &
+  fi
   DL_PID=$!
 
-  # Monitor progress
+  # Monitor progress by checking file size
   while kill -0 $DL_PID 2>/dev/null; do
+    CURRENT=0
     if [ -f "$DATA_DIR/snapshot.tar.gz" ]; then
       CURRENT=$(stat -c%s "$DATA_DIR/snapshot.tar.gz" 2>/dev/null || echo 0)
-      if [ "$TOTAL_BYTES" -gt 0 ] 2>/dev/null; then
-        PROGRESS=$((CURRENT * 100 / TOTAL_BYTES))
-        CURRENT_GB=$((CURRENT / 1073741824))
-        TOTAL_GB=$((TOTAL_BYTES / 1073741824))
-        write_status "{\"phase\":\"downloading\",\"progress\":$PROGRESS,\"downloadedBytes\":$CURRENT,\"totalBytes\":$TOTAL_BYTES,\"downloadedGB\":$CURRENT_GB,\"totalGB\":$TOTAL_GB}"
-      fi
+    fi
+    if [ "$TOTAL_BYTES" -gt 0 ] 2>/dev/null && [ "$CURRENT" -gt 0 ] 2>/dev/null; then
+      PROGRESS=$((CURRENT * 100 / TOTAL_BYTES))
+      CURRENT_GB=$((CURRENT / 1073741824))
+      TOTAL_GB=$((TOTAL_BYTES / 1073741824))
+      write_status "{\"phase\":\"downloading\",\"progress\":$PROGRESS,\"downloadedBytes\":$CURRENT,\"totalBytes\":$TOTAL_BYTES,\"downloadedGB\":$CURRENT_GB,\"totalGB\":$TOTAL_GB}"
     fi
     sleep 2
   done
