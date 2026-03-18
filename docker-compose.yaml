@@ -12,12 +12,6 @@ services:
       - OFFICIAL_RPC=https://rpc.intuition.systems/http
       - NITRO_RPC=http://nitro:8545
       - BASE_RPC_URL=${BASE_RPC_URL}
-    healthcheck:
-      test: ["CMD", "test", "-f", "/data/.ready"]
-      interval: 10s
-      timeout: 5s
-      retries: 5000
-      start_period: 5s
     restart: unless-stopped
 
   nitro:
@@ -27,22 +21,10 @@ services:
     platform: linux/amd64
     labels:
       - "traefik.enable=false"
-    depends_on:
-      init:
-        condition: service_healthy
     volumes:
       - datadir:/home/user/.arbitrum
-    entrypoint:
-      - /usr/local/bin/nitro
-      - --conf.file=/config/nodeConfig.json
-      - --node.staker.enable
-      - --node.staker.strategy=Watchtower
-      - --execution.forwarding-target=wss://rpc.intuition.systems/ws
-      - --node.feed.input.url=wss://rpc.intuition.systems/feed
-      - --parent-chain.connection.url=${BASE_RPC_URL}
-      - --node.dangerous.disable-blob-reader
-      - --node.data-availability.rest-aggregator.urls=https://rpc.intuition.systems/rest-aggregator
-      - --node.data-availability.parent-chain-node-url=${BASE_RPC_URL}
+    environment:
+      - BASE_RPC_URL=${BASE_RPC_URL}
     restart: unless-stopped
 
   gateway:
