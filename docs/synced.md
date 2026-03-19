@@ -2,41 +2,30 @@
 
 ## What's happening
 
-The node is fully synced and following the chain in real-time. It serves as a fully independent RPC endpoint for the Intuition L3.
+The node is fully synced and following the Intuition L3 chain in real-time. It serves as an independent RPC endpoint.
 
 ## How it stays in sync
 
-The node maintains sync through:
+Three mechanisms run concurrently:
 
-1. **Sequencer feed** — receives new blocks via WebSocket within milliseconds of the sequencer producing them
-2. **Batch verification** — periodically reads new batches from Base to verify the feed data matches what was posted on-chain
-3. **Watchtower** — continues monitoring rollup assertions to verify chain integrity
+- **Sequencer feed** — receives new blocks via WebSocket within milliseconds of the sequencer producing them
+- **Batch verification** — periodically reads new batches from Base to confirm that feed data matches what was posted on-chain
+- **Watchtower** — continues monitoring rollup assertions for chain integrity
 
 ## What it can do
 
-Your replica node supports the same RPC methods as any Ethereum node:
+Your replica supports the same RPC methods as any Ethereum node — `eth_call`, `eth_blockNumber`, `eth_getLogs`, `eth_sendRawTransaction`, WebSocket subscriptions, and more. Transactions sent to your node are automatically forwarded to the sequencer.
 
-- `eth_blockNumber`, `eth_getBlockByNumber`, `eth_getBlockByHash`
-- `eth_call`, `eth_estimateGas`, `eth_getBalance`
-- `eth_getTransactionReceipt`, `eth_getTransactionByHash`
-- `eth_getLogs` (with full archive history)
-- `eth_sendRawTransaction` (forwarded to the sequencer)
-- WebSocket subscriptions (`eth_subscribe`)
-
-## Transaction forwarding
-
-When a user sends a transaction to your replica via `eth_sendRawTransaction`, the node forwards it to the sequencer at `wss://rpc.intuition.systems/ws`. The sequencer includes it in a batch, and your node picks it up via the feed.
-
-## Resource usage (steady state)
+## Steady-state resource usage
 
 | Resource | Usage |
 |---|---|
-| CPU | ~1% (1 core) |
+| CPU | ~1% |
 | RAM | ~400 MB |
-| Alchemy CU | ~1-2M / month |
-| Alchemy cost | < $1 / month |
+| Alchemy | ~1-2M CU/month (< $1) |
 
-## Further reading
+## Arbitrum docs
 
-- [Arbitrum Transaction Lifecycle](https://docs.arbitrum.io/how-arbitrum-works/transaction-lifecycle)
-- [Running a Full Node](https://docs.arbitrum.io/run-arbitrum-node/run-full-node)
+- [Transaction Lifecycle](https://docs.arbitrum.io/how-arbitrum-works/transaction-lifecycle) — how a transaction goes from submission to finality
+- [Running a Full Node](https://docs.arbitrum.io/run-arbitrum-node/run-full-node) — node operation and configuration
+- [Running a Feed Relay](https://docs.arbitrum.io/run-arbitrum-node/run-feed-relay) — how the sequencer feed works

@@ -2,28 +2,25 @@
 
 ## What's happening
 
-The node has finished scanning historical data and is now processing new blocks to catch up to the chain head. Blocks are created rapidly — typically thousands per minute — until the node reaches the latest block.
+The node has finished verifying historical data and is now executing new batches to catch up to the chain head. Blocks are created rapidly — typically 500 to 3,000 per minute — until it reaches the latest block.
 
 ## How blocks are created
 
-The node derives L3 blocks from two data sources:
+The node derives L3 blocks from two sources:
 
-1. **Sequencer batches on Base** — compressed transaction bundles posted by the sequencer to the Sequencer Inbox contract. The node reads these from Base, decompresses them, and executes the transactions to produce blocks.
+- **Sequencer batches on Base** — the canonical source. The node reads compressed transaction bundles posted by the sequencer to the Sequencer Inbox contract, decompresses them, and executes the transactions to produce blocks. For AnyTrust batches, it first fetches the raw data from the DAS using the certificate hash.
 
-2. **Sequencer feed** — a WebSocket connection to `wss://rpc.intuition.systems/feed` that delivers new blocks in real-time. This is faster than waiting for batches to be posted to Base (which has a delay).
+- **Sequencer feed** — a real-time WebSocket stream. As the node approaches the chain head, the feed takes over for instant block delivery (milliseconds vs minutes for on-chain batches).
 
-During the catch-up phase, the node primarily uses batches from Base. Once it's close to the head, the feed takes over for real-time block delivery.
+During catch-up, the node primarily uses batches. Once near the head, the feed provides real-time blocks and batches serve as on-chain confirmation.
 
-## Block production rate
+## What affects sync speed
 
-The syncing speed depends on:
-- **Alchemy RPC throughput** — how fast the node can read batches from Base
-- **CPU** — decompressing and executing transactions
-- **Chain activity** — more transactions per batch = more processing per block
+- **Alchemy throughput** — Free tier (25 req/s) is significantly slower than Pay As You Go (300 req/s) for reading batches
+- **CPU** — decompressing and executing transactions is CPU-bound
+- **DAS availability** — fetching data from the REST aggregator adds latency per batch
 
-Typical rates: 500-3,000 blocks/minute during catch-up.
+## Arbitrum docs
 
-## Further reading
-
-- [Arbitrum Sequencer](https://docs.arbitrum.io/how-arbitrum-works/sequencer)
-- [Nitro's Execution Engine](https://docs.arbitrum.io/how-arbitrum-works/inside-arbitrum-nitro#geth-at-the-core)
+- [The Sequencer](https://docs.arbitrum.io/how-arbitrum-works/sequencer) — feed relay and batch posting
+- [Inside Arbitrum Nitro — Geth at the Core](https://docs.arbitrum.io/how-arbitrum-works/inside-arbitrum-nitro) — how the EVM execution engine processes transactions
