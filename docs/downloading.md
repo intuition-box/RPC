@@ -15,15 +15,15 @@ The ~32 GB compressed archive contains the Nitro node's data directory:
 ```
 intuition/
 ├── nitro/
-│   ├── l2chaindata/     # The chain's block and state data (largest portion)
-│   ├── arbitrumdata/    # Arbitrum-specific data (delayed inbox, etc.)
+│   ├── l2chaindata/     # Block and state data (largest portion)
+│   ├── arbitrumdata/    # Arbitrum-specific data (delayed inbox, batch metadata)
 │   ├── wasm/            # WebAssembly modules for state transition validation
 │   └── LOCK             # Database lock file
 ├── keystore/            # Node identity keys
 └── nodekey              # P2P network key
 ```
 
-The `l2chaindata/` directory uses [PebbleDB](https://github.com/cockroachdb/pebble) (Go's key-value store) to store the Ethereum state trie, block headers, receipts, and transaction data.
+The `l2chaindata/` directory is a [PebbleDB](https://github.com/cockroachdb/pebble) database storing the Ethereum state trie, block headers, receipts, and transaction data.
 
 ## Configuration
 
@@ -33,7 +33,7 @@ The snapshot URL is configurable via environment variable:
 SNAPSHOT_URL=https://constellationlabs-dashboard-beta.s3.amazonaws.com/intuition-03-11-2026.tar.gz
 ```
 
-## Further reading
+## Arbitrum docs
 
-- [Arbitrum Nitro Architecture](https://docs.arbitrum.io/how-arbitrum-works/inside-arbitrum-nitro)
-- [Running a Full Node](https://docs.arbitrum.io/run-arbitrum-node/run-full-node)
+- [Inside Arbitrum Nitro](https://docs.arbitrum.io/how-arbitrum-works/inside-arbitrum-nitro) — architecture of the node
+- [Running a Full Node](https://docs.arbitrum.io/run-arbitrum-node/run-full-node) — database snapshots and initialization
