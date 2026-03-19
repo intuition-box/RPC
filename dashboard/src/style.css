@@ -337,6 +337,24 @@ header .badge {
   text-align: center;
 }
 
+/* --- Read more --- */
+
+.read-more {
+  display: inline-block;
+  margin-top: 1.2rem;
+  font-size: 0.9rem;
+  color: var(--dim);
+  text-decoration: none;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 1px;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.read-more:hover {
+  color: var(--white);
+  border-color: var(--dim);
+}
+
 /* --- Footer --- */
 
 .footer {
