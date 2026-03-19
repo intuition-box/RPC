@@ -43,18 +43,18 @@ The node needs a Base mainnet RPC endpoint to read the parent chain. Here's how 
 
 | | Free | Pay As You Go |
 |---|---|---|
-| **Cost** | $0/mo | ~$5 for initial sync, ~$1/mo ongoing |
+| **Cost** | $0/mo | < $1 for initial sync, < $1/mo ongoing |
 | **Monthly compute units** | 30M | Unlimited (pay per use) |
 | **Throughput** | 25 req/s | 300 req/s |
 
 **The Free tier works fine for ongoing operation** (~1-2M CU/month used, well under the 30M limit).
 
 The main consideration is **initial sync speed**:
-- During first sync, the node scans thousands of sequencer batches on Base. This uses ~5-10M compute units total (within the free budget) but the Free tier's 25 req/s rate limit makes it slower.
-- Pay As You Go gives 300 req/s, making sync ~10x faster, for a one-time cost of ~$5.
+- During first sync, the node scans thousands of sequencer batches on Base. The Free tier's 25 req/s rate limit makes it very slow (can take hours).
+- Pay As You Go gives 300 req/s, making sync ~10x faster, for less than $1 total.
 - After sync, the Free tier handles ongoing polling easily.
 
-**Recommendation**: Start on Free. If sync feels too slow, temporarily switch to Pay As You Go (~$5 total), then switch back.
+**Recommendation**: Use Pay As You Go. A full sync costs less than $1 and ongoing usage is under $1/month.
 
 ## Network Details
 
@@ -118,6 +118,17 @@ On subsequent deploys, the datadir volume persists -- the node skips straight to
 | RAM | 2 GB |
 | Disk | 100 GB |
 | Network | Stable connection |
+
+### Example: Hetzner CPX32
+
+A good budget option at ~$10/month:
+
+| | |
+|---|---|
+| CPU | 4 vCPU |
+| RAM | 8 GB |
+| Disk | 160 GB |
+| Price | ~$10.49/mo |
 
 ## Key Contracts (on Base)
 

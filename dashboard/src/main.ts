@@ -143,6 +143,12 @@ function liveHTML(s: Status): string {
   `
 }
 
+const DOCS_BASE = 'https://github.com/intuition-box/RPC/blob/main/docs'
+
+function readMoreLink(step: string): string {
+  return `<a class="read-more" href="${DOCS_BASE}/${step}.md" target="_blank">read more</a>`
+}
+
 // --- Setup views (downloading, extracting, starting, scanning) ---
 
 function stepperHTML(current: Phase): string {
@@ -177,6 +183,7 @@ function downloadingHTML(): string {
       </div>
     </div>
     <div class="dl-eta" id="dl-eta"></div>
+    ${readMoreLink('downloading')}
   `
 }
 
@@ -213,15 +220,15 @@ function scanningHTML(s: Status): string {
     content = `<div class="spinner"></div><div class="phase-title">Scanning chain data</div>`
   }
 
-  return `${content}<div class="scan-blocks">Block ${fmt(s.localBlock)} / ${fmt(s.officialBlock)}</div>`
+  return `${content}<div class="scan-blocks">Block ${fmt(s.localBlock)} / ${fmt(s.officialBlock)}</div>${readMoreLink('scanning')}`
 }
 
 function setupContent(s: Status): string {
   switch (s.phase) {
     case 'installing': return `<div class="spinner"></div><div class="phase-title">Initializing</div>`
     case 'downloading': return downloadingHTML()
-    case 'extracting': return `<div class="spinner"></div><div class="phase-title">Extracting snapshot</div><div class="phase-message">This may take a few minutes</div>`
-    case 'starting': return `<div class="spinner"></div><div class="phase-title">Starting node</div><div class="phase-message">${s.message || ''}</div>`
+    case 'extracting': return `<div class="spinner"></div><div class="phase-title">Extracting snapshot</div><div class="phase-message">This may take a few minutes</div>${readMoreLink('extracting')}`
+    case 'starting': return `<div class="spinner"></div><div class="phase-title">Starting node</div><div class="phase-message">${s.message || ''}</div>${readMoreLink('starting')}`
     case 'scanning': return scanningHTML(s)
     case 'error': return `<div class="phase-title">Error</div><div class="phase-message">${s.message || ''}</div>`
     default: return `<div class="spinner"></div><div class="phase-title">${s.phase}</div>`
