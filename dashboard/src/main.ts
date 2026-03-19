@@ -11,8 +11,6 @@ interface Status {
   progress?: number
   downloadedBytes?: number
   totalBytes?: number
-  downloadedGB?: number
-  totalGB?: number
   localBlock?: number
   officialBlock?: number
   blockDiff?: number
@@ -30,63 +28,26 @@ interface Status {
 }
 
 let status: Status = { phase: 'installing' }
+let lastPhase: Phase | null = null
 
-// Smooth animation state
+// Download animation state
 let displayBytes = 0
 let targetBytes = 0
-let totalBytes = 0
+let totalBytesVal = 0
 let lerpHandle = 0
-
-// ETA tracking
 let prevBytes = 0
 let prevTime = 0
 let bytesPerSec = 0
 
-function startLerp() {
-  if (lerpHandle) return
-  lerpHandle = window.setInterval(() => {
-    if (Math.abs(targetBytes - displayBytes) < 1000) {
-      displayBytes = targetBytes
-    } else {
-      displayBytes += (targetBytes - displayBytes) * 0.15
-    }
-    updateDownloadDisplay()
-  }, LERP_INTERVAL)
+const OFFICIAL_HTTP = 'https://rpc.intuition.systems/http'
+const OFFICIAL_WS = 'wss://rpc.intuition.systems/ws'
+
+function getReplicaHTTP(): string {
+  return `${location.origin}/http`
 }
 
-function updateDownloadDisplay() {
-  const el = document.getElementById('dl-progress')
-  if (!el) return
-
-  const pct = totalBytes > 0 ? (displayBytes / totalBytes) * 100 : 0
-  const dlGB = displayBytes / 1_073_741_824
-  const tGB = totalBytes / 1_073_741_824
-
-  const fill = el.querySelector<HTMLDivElement>('.fill')
-  const sizeLabel = el.querySelector<HTMLSpanElement>('.dl-size')
-  const pctLabel = el.querySelector<HTMLSpanElement>('.dl-pct')
-
-  if (fill) fill.style.width = `${pct}%`
-  if (sizeLabel) sizeLabel.textContent = `${dlGB.toFixed(2)} / ${tGB.toFixed(1)} GB`
-  if (pctLabel) pctLabel.textContent = `${pct.toFixed(1)}%`
-
-  const etaEl = document.getElementById('dl-eta')
-  if (etaEl && bytesPerSec > 0) {
-    const remaining = totalBytes - displayBytes
-    const secsLeft = Math.max(0, Math.round(remaining / bytesPerSec))
-    const finishAt = new Date(Date.now() + secsLeft * 1000)
-    etaEl.textContent = `~${fmtDuration(secsLeft)} left \u00b7 done at ~${finishAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-  }
-}
-
-function fmtDuration(secs: number): string {
-  if (secs < 60) return `${secs}s`
-  const m = Math.floor(secs / 60)
-  const s = secs % 60
-  if (m < 60) return `${m}min ${s.toString().padStart(2, '0')}s`
-  const h = Math.floor(m / 60)
-  const rm = m % 60
-  return `${h}h ${rm.toString().padStart(2, '0')}min`
+function getReplicaWS(): string {
+  return `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/ws`
 }
 
 async function fetchStatus(): Promise<Status> {
@@ -103,6 +64,86 @@ function hex(n: number | undefined): string {
   if (n === undefined || n === null) return ''
   return '0x' + n.toString(16)
 }
+
+function copyToClipboard(text: string, btnId: string) {
+  navigator.clipboard.writeText(text)
+  const btn = document.getElementById(btnId)
+  if (btn) {
+    btn.textContent = 'copied'
+    btn.classList.add('copied')
+    setTimeout(() => { btn.textContent = 'copy'; btn.classList.remove('copied') }, 1500)
+  }
+}
+
+function fmtDuration(secs: number): string {
+  if (secs < 60) return `${secs}s`
+  const m = Math.floor(secs / 60)
+  const s = secs % 60
+  if (m < 60) return `${m}min ${s.toString().padStart(2, '0')}s`
+  const h = Math.floor(m / 60)
+  const rm = m % 60
+  return `${h}h ${rm.toString().padStart(2, '0')}min`
+}
+
+// --- Live view (synced/syncing) ---
+
+function liveHTML(s: Status): string {
+  const isSynced = s.phase === 'synced'
+  const dotClass = isSynced ? 'live' : 'syncing'
+  const label = isSynced ? 'Live' : 'Syncing'
+  const diffClass = (s.blockDiff ?? 0) === 0 ? 'zero' : ''
+
+  return `
+    <div class="status-line">
+      <div class="status-dot ${dotClass}"></div>
+      ${label}
+    </div>
+
+    <div class="section-label">Replica</div>
+    <div class="endpoints">
+      <div class="endpoint-row">
+        <span class="ep-label">RPC (HTTP)</span>
+        <span class="ep-url" id="replica-http">${getReplicaHTTP()}</span>
+        <button class="ep-copy" id="copy-replica-http">copy</button>
+      </div>
+      <div class="endpoint-row">
+        <span class="ep-label">RPC (WS)</span>
+        <span class="ep-url" id="replica-ws">${getReplicaWS()}</span>
+        <button class="ep-copy" id="copy-replica-ws">copy</button>
+      </div>
+    </div>
+
+    <div class="section-label">Official</div>
+    <div class="endpoints">
+      <div class="endpoint-row">
+        <span class="ep-label">RPC (HTTP)</span>
+        <span class="ep-url">${OFFICIAL_HTTP}</span>
+        <button class="ep-copy" id="copy-official-http">copy</button>
+      </div>
+      <div class="endpoint-row">
+        <span class="ep-label">RPC (WS)</span>
+        <span class="ep-url">${OFFICIAL_WS}</span>
+        <button class="ep-copy" id="copy-official-ws">copy</button>
+      </div>
+    </div>
+
+    <div class="block-info">
+      <div class="block-row">
+        <span class="bl-label">Block</span>
+        <span>
+          <span class="bl-value">${fmt(s.localBlock)}</span>
+          <span class="bl-hex">${hex(s.localBlock)}</span>
+        </span>
+      </div>
+      <div class="block-row diff">
+        <span class="bl-label">Diff</span>
+        <span class="bl-value ${diffClass}">${fmt(s.blockDiff)}</span>
+      </div>
+    </div>
+  `
+}
+
+// --- Setup views (downloading, extracting, starting, scanning) ---
 
 function stepperHTML(current: Phase): string {
   const steps = PHASES
@@ -139,22 +180,6 @@ function downloadingHTML(): string {
   `
 }
 
-function extractingHTML(): string {
-  return `
-    <div class="spinner"></div>
-    <div class="phase-title">Extracting snapshot</div>
-    <div class="phase-message">This may take a few minutes</div>
-  `
-}
-
-function startingHTML(s: Status): string {
-  return `
-    <div class="spinner"></div>
-    <div class="phase-title">Starting node</div>
-    <div class="phase-message">${s.message || 'Waiting for Nitro to respond...'}</div>
-  `
-}
-
 function scanningHTML(s: Status): string {
   const current = s.currentBatch ?? 0
   const total = s.totalBatches ?? 0
@@ -162,191 +187,158 @@ function scanningHTML(s: Status): string {
   const pct = s.scanProgress ?? 0
   const step = s.scanStep ?? 'starting'
 
-  let stepContent = ''
+  let content = ''
 
   if (step === 'assertions') {
     const aNode = s.assertionNode ?? 0
     const aTotal = s.totalAssertions ?? 0
     const aPct = s.assertionProgress ?? 0
-    stepContent = `
-      <div class="phase-title">Validating rollup assertions</div>
-      <div class="phase-message scan-explain">
-        Verifying assertions posted to Base by the rollup validators.
-      </div>
-      ${aTotal > 0 ? `
-        <div class="progress-bar-wrapper">
-          <div class="progress-bar"><div class="fill" style="width: ${aPct}%"></div></div>
-          <div class="progress-info">
-            <span>Assertion ${fmt(aNode)} / ${fmt(aTotal)}</span>
-            <span>${aPct}%</span>
-          </div>
-        </div>
-      ` : `
-        <div class="spinner"></div>
-        <div class="phase-message">${aNode > 0 ? `Assertion ${fmt(aNode)} verified...` : 'Starting...'}</div>
-      `}
-    `
+    content = aTotal > 0
+      ? `<div class="phase-title">Validating assertions</div>
+         <div class="progress-bar-wrapper">
+           <div class="progress-bar"><div class="fill" style="width: ${aPct}%"></div></div>
+           <div class="progress-info"><span>${fmt(aNode)} / ${fmt(aTotal)}</span><span>${aPct}%</span></div>
+         </div>`
+      : `<div class="spinner"></div><div class="phase-title">Validating assertions</div>
+         <div class="phase-message">${aNode > 0 ? `Assertion ${fmt(aNode)}...` : ''}</div>`
   } else if (step === 'batches' && total > 0) {
-    stepContent = `
-      <div class="phase-title">Scanning sequencer batches</div>
-      <div class="phase-message scan-explain">
-        Verifying historical batches posted to Base.
-        ${known > 0 ? `The snapshot contains ${fmt(known)} batches \u2014 scanning to find ${fmt(total - known)} new ones.` : ''}
-      </div>
+    content = `
+      <div class="phase-title">Scanning batches</div>
+      <div class="scan-explain">${known > 0 ? `Snapshot has ${fmt(known)} batches, scanning ${fmt(total - known)} new.` : ''}</div>
       <div class="progress-bar-wrapper">
         <div class="progress-bar"><div class="fill" style="width: ${pct}%"></div></div>
-        <div class="progress-info">
-          <span>Batch ${fmt(current)} / ${fmt(total)}</span>
-          <span>${pct}%</span>
-        </div>
-      </div>
-    `
+        <div class="progress-info"><span>${fmt(current)} / ${fmt(total)}</span><span>${pct}%</span></div>
+      </div>`
   } else {
-    stepContent = `
-      <div class="spinner"></div>
-      <div class="phase-title">Scanning chain data</div>
-      <div class="phase-message scan-explain">Reading from Base...</div>
-    `
+    content = `<div class="spinner"></div><div class="phase-title">Scanning chain data</div>`
   }
 
-  return `
-    ${stepContent}
-    <div class="scan-blocks">
-      Block height: <span class="val behind">${fmt(s.localBlock)}</span> / ${fmt(s.officialBlock)}
-    </div>
-  `
+  return `${content}<div class="scan-blocks">Block ${fmt(s.localBlock)} / ${fmt(s.officialBlock)}</div>`
 }
 
-function blocksHTML(s: Status): string {
-  const isSynced = s.phase === 'synced'
-  const diffClass = (s.blockDiff ?? 0) === 0 ? 'zero' : 'behind'
-  const dotClass = isSynced ? 'synced' : 'syncing'
-  const label = isSynced ? 'In sync' : 'Syncing'
-
-  return `
-    <div class="grid">
-      <div class="card official">
-        <div class="card-label">Official RPC</div>
-        <div class="block-number">${fmt(s.officialBlock)}</div>
-        <div class="block-hex">${hex(s.officialBlock)}</div>
-      </div>
-      <div class="card replica">
-        <div class="card-label">Replica</div>
-        <div class="block-number">${fmt(s.localBlock)}</div>
-        <div class="block-hex">${hex(s.localBlock)}</div>
-      </div>
-    </div>
-    <div class="sync-bar">
-      <div class="sync-indicator">
-        <div class="sync-dot ${dotClass}"></div>
-        ${label}
-      </div>
-      <div class="sync-diff">
-        Diff: <span class="val ${diffClass}">${fmt(s.blockDiff)}</span>
-        ${s.blocksPerMinute ? ` &middot; ${fmt(s.blocksPerMinute)} blk/min` : ''}
-      </div>
-    </div>
-  `
-}
-
-function errorHTML(s: Status): string {
-  return `<div class="error-box">${s.message || 'An error occurred'}</div>`
-}
-
-function phaseContent(s: Status): string {
+function setupContent(s: Status): string {
   switch (s.phase) {
     case 'installing': return `<div class="spinner"></div><div class="phase-title">Initializing</div>`
     case 'downloading': return downloadingHTML()
-    case 'extracting': return extractingHTML()
-    case 'starting': return startingHTML(s)
+    case 'extracting': return `<div class="spinner"></div><div class="phase-title">Extracting snapshot</div><div class="phase-message">This may take a few minutes</div>`
+    case 'starting': return `<div class="spinner"></div><div class="phase-title">Starting node</div><div class="phase-message">${s.message || ''}</div>`
     case 'scanning': return scanningHTML(s)
-    case 'syncing': return blocksHTML(s)
-    case 'synced': return blocksHTML(s)
-    case 'error': return errorHTML(s)
+    case 'error': return `<div class="phase-title">Error</div><div class="phase-message">${s.message || ''}</div>`
     default: return `<div class="spinner"></div><div class="phase-title">${s.phase}</div>`
   }
 }
 
-let lastPhase: Phase | null = null
+// --- Render ---
+
+function isLive(): boolean {
+  return status.phase === 'synced' || status.phase === 'syncing'
+}
 
 function render() {
-  const activePhase = status.phase === 'installing' ? 'downloading' : status.phase
-  const time = status.updatedAt
-    ? new Date(status.updatedAt).toLocaleTimeString()
-    : '\u2014'
+  const time = status.updatedAt ? new Date(status.updatedAt).toLocaleTimeString() : ''
 
-  // Only rebuild DOM when phase changes, otherwise update in-place
   if (lastPhase !== status.phase) {
     lastPhase = status.phase
-    document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
-      <header>
-        <h1><span>Intuition L3</span> \u2014 Replica Node</h1>
-        <div class="badge">Chain 1155 \u00b7 Arbitrum Nitro</div>
-      </header>
+    const app = document.querySelector<HTMLDivElement>('#app')!
 
-      ${stepperHTML(activePhase as Phase)}
-
-      <div class="phase-content">
-        ${phaseContent(status)}
-      </div>
-
-      <div class="footer">
-        Updated <span id="update-time">${time}</span>
-      </div>
-    `
+    if (isLive()) {
+      app.innerHTML = `
+        <header>
+          <h1>Intuition RPC</h1>
+          <div class="badge">Chain 1155</div>
+        </header>
+        <div id="live-content">${liveHTML(status)}</div>
+        <div class="footer">Updated <span id="update-time">${time}</span></div>
+      `
+    } else {
+      const activePhase = status.phase === 'installing' ? 'downloading' : status.phase
+      app.innerHTML = `
+        <header>
+          <h1>Intuition RPC</h1>
+          <div class="badge">Chain 1155</div>
+        </header>
+        ${stepperHTML(activePhase as Phase)}
+        <div class="phase-content">${setupContent(status)}</div>
+        <div class="footer">Updated <span id="update-time">${time}</span></div>
+      `
+    }
   }
 
-  // Update time
+  // In-place updates
   const timeEl = document.getElementById('update-time')
   if (timeEl) timeEl.textContent = time
 
-  // Update scanning display in-place
-  if (status.phase === 'scanning') {
-    const scanContent = document.querySelector('.phase-content')
-    if (scanContent) scanContent.innerHTML = scanningHTML(status)
+  if (isLive()) {
+    const liveEl = document.getElementById('live-content')
+    if (liveEl) liveEl.innerHTML = liveHTML(status)
+  } else if (status.phase === 'scanning') {
+    const phaseEl = document.querySelector('.phase-content')
+    if (phaseEl) phaseEl.innerHTML = scanningHTML(status)
   }
 
-  // Update syncing/synced display in-place
-  if (status.phase === 'syncing' || status.phase === 'synced') {
-    const syncContent = document.querySelector('.phase-content')
-    if (syncContent) syncContent.innerHTML = blocksHTML(status)
-  }
-
-  // Update download animation target
+  // Download animation
   if (status.phase === 'downloading') {
     const newBytes = status.downloadedBytes ?? 0
     const now = Date.now()
-
-    // Calculate speed from delta between polls
     if (prevTime > 0 && newBytes > prevBytes) {
       const elapsed = (now - prevTime) / 1000
       if (elapsed > 0) {
         const speed = (newBytes - prevBytes) / elapsed
-        // Smooth the speed estimate
         bytesPerSec = bytesPerSec > 0 ? bytesPerSec * 0.7 + speed * 0.3 : speed
       }
     }
     prevBytes = newBytes
     prevTime = now
-
     targetBytes = newBytes
-    totalBytes = status.totalBytes ?? 34_000_000_000
+    totalBytesVal = status.totalBytes ?? 34_000_000_000
     startLerp()
     updateDownloadDisplay()
-  } else {
-    if (lerpHandle) {
-      clearInterval(lerpHandle)
-      lerpHandle = 0
-    }
+  } else if (lerpHandle) {
+    clearInterval(lerpHandle)
+    lerpHandle = 0
   }
 }
 
-async function poll() {
-  try {
-    status = await fetchStatus()
-  } catch {
-    // keep last known status
+function startLerp() {
+  if (lerpHandle) return
+  lerpHandle = window.setInterval(() => {
+    if (Math.abs(targetBytes - displayBytes) < 1000) displayBytes = targetBytes
+    else displayBytes += (targetBytes - displayBytes) * 0.15
+    updateDownloadDisplay()
+  }, LERP_INTERVAL)
+}
+
+function updateDownloadDisplay() {
+  const el = document.getElementById('dl-progress')
+  if (!el) return
+  const pct = totalBytesVal > 0 ? (displayBytes / totalBytesVal) * 100 : 0
+  const dlGB = displayBytes / 1_073_741_824
+  const tGB = totalBytesVal / 1_073_741_824
+  const fill = el.querySelector<HTMLDivElement>('.fill')
+  const sizeLabel = el.querySelector<HTMLSpanElement>('.dl-size')
+  const pctLabel = el.querySelector<HTMLSpanElement>('.dl-pct')
+  if (fill) fill.style.width = `${pct}%`
+  if (sizeLabel) sizeLabel.textContent = `${dlGB.toFixed(2)} / ${tGB.toFixed(1)} GB`
+  if (pctLabel) pctLabel.textContent = `${pct.toFixed(1)}%`
+  const etaEl = document.getElementById('dl-eta')
+  if (etaEl && bytesPerSec > 0) {
+    const secsLeft = Math.max(0, Math.round((totalBytesVal - displayBytes) / bytesPerSec))
+    const finishAt = new Date(Date.now() + secsLeft * 1000)
+    etaEl.textContent = `~${fmtDuration(secsLeft)} left \u00b7 done at ~${finishAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
   }
+}
+
+// Copy button delegation
+document.getElementById('app')!.addEventListener('click', (e) => {
+  const target = e.target as HTMLElement
+  if (target.id === 'copy-replica-http') copyToClipboard(getReplicaHTTP(), target.id)
+  if (target.id === 'copy-replica-ws') copyToClipboard(getReplicaWS(), target.id)
+  if (target.id === 'copy-official-http') copyToClipboard(OFFICIAL_HTTP, target.id)
+  if (target.id === 'copy-official-ws') copyToClipboard(OFFICIAL_WS, target.id)
+})
+
+async function poll() {
+  try { status = await fetchStatus() } catch { /* keep last */ }
   render()
 }
 
