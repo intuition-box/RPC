@@ -47,6 +47,7 @@ services:
     environment:
       - API_KEY=${API_KEY:-}
       - DOMAIN=${DOMAIN:-}
+      - PUBLIC_DOMAIN=${PUBLIC_DOMAIN:-}
     restart: unless-stopped
 volumes:
   datadir:

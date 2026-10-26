@@ -133,6 +133,22 @@ Request stats are parsed from the nginx access log — no database needed.
 
 The key check happens entirely in nginx — no external service, no database lookup, no added latency.
 
+### Public tier (keyless endpoint next to keyed access)
+
+Set `PUBLIC_DOMAIN` to serve one hostname without API keys while every other hostname keeps requiring one, all on a single Nitro node. Example: `rpc.intuition.box` public, `vib.rpc.intuition.box` keyed. Add both domains to the gateway service.
+
+Requests to the public hostname go through hard caps, so public load can never take the capacity reserved for keyed users:
+
+| Limit | Value | Response when exceeded |
+|---|---|---|
+| Per client IP | 25 req/s (burst 50), 20 concurrent HTTP, 5 WebSocket connections | `429` |
+| Whole public tier | 400 req/s (burst 200) | `429` |
+| Concurrent public calls inside Nitro | 48 HTTP, 500 WebSocket connections | `503` |
+| Methods | `debug_*`, `txpool_*`, `admin_*`, `personal_*`, `miner_*` blocked | `403` |
+| Batch size / body / timeout | 20 calls / 256 KB / 15 s | `400` / `413` / `503` |
+
+Keyed requests keep full method access, with a per-key guard of 200 req/s (burst 400). The limits live in `gateway/nginx.conf` and `gateway/rpc-filter.js`; tune them from stress-test results. Client IPs come from Traefik's `X-Forwarded-For` header, which is trusted only from private Docker network ranges.
+
 ---
 
 ## Environment Variables
@@ -142,6 +158,7 @@ The key check happens entirely in nginx — no external service, no database loo
 | `BASE_RPC_URL` | Yes | -- | Base mainnet RPC URL (Alchemy, Infura, etc.) |
 | `API_KEY` | No | -- | Single API key for simple auth |
 | `DOMAIN` | No | auto-detected | Domain shown in CLI output (auto-detected on Coolify) |
+| `PUBLIC_DOMAIN` | No | -- | Hostname(s) served as the keyless, rate-limited public tier (comma-separated) |
 | `SNAPSHOT_URL` | No | pre-configured | Override S3 snapshot URL |
 
 ---
