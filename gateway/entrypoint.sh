@@ -41,5 +41,15 @@ fi
 
 echo "Auth mode: $([ $KEY_COUNT -gt 0 ] && echo "$KEY_COUNT key(s) configured" || echo "open access")"
 
+# Generate tier.map: PUBLIC_DOMAIN hosts (comma-separated) get the public tier
+TIER_MAP="/etc/nginx/tier.map"
+echo "# Auto-generated - do not edit" > "$TIER_MAP"
+for d in $(echo "${PUBLIC_DOMAIN:-}" | tr ',' ' '); do
+  echo "\"$(echo "$d" | tr 'A-Z' 'a-z')\" public;" >> "$TIER_MAP"
+done
+echo 'default vib;' >> "$TIER_MAP"
+
+echo "Public tier: ${PUBLIC_DOMAIN:-disabled}"
+
 # Start nginx
 exec nginx -g 'daemon off;'

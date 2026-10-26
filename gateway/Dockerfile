@@ -8,7 +8,9 @@ RUN npm run build
 FROM nginx:alpine
 RUN apk add --no-cache jq bash bash-completion
 COPY --from=dashboard /app/dist /usr/share/nginx/html
+RUN sed -i '1i load_module modules/ngx_http_js_module.so;' /etc/nginx/nginx.conf
 COPY gateway/nginx.conf /etc/nginx/conf.d/default.conf
+COPY gateway/rpc-filter.js /etc/nginx/njs/rpc-filter.js
 COPY gateway/entrypoint.sh /entrypoint.sh
 COPY gateway/rpc-keys.sh /usr/local/bin/rpc-keys
 RUN chmod +x /entrypoint.sh /usr/local/bin/rpc-keys
