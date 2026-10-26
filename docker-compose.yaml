@@ -25,6 +25,7 @@ services:
       - datadir:/home/user/.arbitrum
     entrypoint:
       - /usr/local/bin/nitro
+      - --validation.wasm.allowed-wasm-module-roots=/home/user/nitro-legacy/machines,/home/user/target/machines
       - --conf.file=/config/nodeConfig.json
       - --node.staker.enable
       - --node.staker.strategy=Watchtower
@@ -32,8 +33,7 @@ services:
       - --node.feed.input.url=wss://rpc.intuition.systems/feed
       - --parent-chain.connection.url=${BASE_RPC_URL}
       - --node.dangerous.disable-blob-reader
-      - --node.data-availability.rest-aggregator.urls=https://rpc.intuition.systems/rest-aggregator
-      - --node.data-availability.parent-chain-node-url=${BASE_RPC_URL}
+      - --node.da.anytrust.rest-aggregator.urls=https://rpc.intuition.systems/rest-aggregator
     restart: unless-stopped
 
   gateway:

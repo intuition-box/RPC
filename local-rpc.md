@@ -43,7 +43,7 @@ docker run -d \
   -v $(pwd)/nodeConfig.json:/config/nodeConfig.json:ro \
   -v $(pwd)/datadir:/home/user/.arbitrum \
   --restart unless-stopped \
-  public.ecr.aws/i6b2w2n6/nitro-node:v3.7.1 \
+  offchainlabs/nitro-node:v3.12.1-70fa99a \
   --conf.file=/config/nodeConfig.json \
   --node.staker.enable \
   --node.staker.strategy=Watchtower \
@@ -51,8 +51,7 @@ docker run -d \
   --node.feed.input.url=wss://rpc.intuition.systems/feed \
   --parent-chain.connection.url=YOUR_BASE_RPC_URL \
   --node.dangerous.disable-blob-reader \
-  --node.data-availability.rest-aggregator.urls=https://rpc.intuition.systems/rest-aggregator \
-  --node.data-availability.parent-chain-node-url=YOUR_BASE_RPC_URL
+  --node.da.anytrust.rest-aggregator.urls=https://rpc.intuition.systems/rest-aggregator
 ```
 
 Replace `YOUR_BASE_RPC_URL` with your Alchemy Base URL.
