@@ -71,7 +71,7 @@ The gateway runs a custom entrypoint that generates the nginx key map on startup
 
 The actual blockchain node. It syncs the Intuition L3 chain by reading sequencer batches from Base, connecting to the sequencer feed for real-time blocks, and forwarding user transactions to the sequencer.
 
-Based on the official `public.ecr.aws/i6b2w2n6/nitro-node:v3.7.1` image with `nodeConfig.json` baked in. Runs in Watchtower mode (passive validation, no staking).
+Based on the official `offchainlabs/nitro-node:v3.12.1-70fa99a` image with `nodeConfig.json` baked in. Runs in Watchtower mode (passive validation, no staking).
 
 ### init (lifecycle manager)
 
@@ -189,7 +189,7 @@ On subsequent deploys, the datadir volume persists — the node skips straight t
 |---|---|
 | Chain ID | `1155` |
 | Parent Chain | Base (`8453`) |
-| Node Software | Arbitrum Nitro v3.7.1 |
+| Node Software | Arbitrum Nitro v3.12.1 (ArbOS 61 ready) |
 
 ## Minimum Requirements
 

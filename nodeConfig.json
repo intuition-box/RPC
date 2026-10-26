@@ -26,23 +26,23 @@
   },
   "node": {
     "batch-poster": {
-      "enable": false,
-      "max-size": 80000
+      "enable": false
     },
     "dangerous": {
       "no-sequencer-coordinator": false
     },
-    "data-availability": {
-      "enable": true,
-      "rest-aggregator": {
-        "enable": true
-      },
-      "rpc-aggregator": {
-        "assumed-honest": 1,
-        "backends": "[{\"url\":\"http://das-server:9876\",\"pubkey\":\"YBDtH63viIhMqKhI1gMJAfnnkHb+rNKTSkdVbIc1M8Ur0nXu9mum/IbVwKztC73AOBYy//02MK4km8ECP1YLjNYLZ6nTio/Z2PjlsXFJlW8ug3FTzAlxtOvlNz4DPW87pgSckvzD2BgP7zOBwNnWrW+VX3kQBPfN1+1NblDFYMMd3Uz1hE1TWpNge3TSqL9B8Q72PW13loPuVTTZ7uiEtcMmCK0TIy57hupb/I0gHiPqf22JdueIKzjhXiLL0+HstA1XV5Lj8ajKRQmP+xtNhLGY/+XaI40iSF1XspDwn1wEWrVIlgGF12q6xyC/vZ8nTAY+rYN0YntFiI2JlS7VKw13U6fctojgWnqKDgJCMGraf5i+/DUFypWyVtvCdoMOfA==\",\"signermask\":1}]",
-        "enable": false
-      },
-      "sequencer-inbox-address": "0xFC239694C97b06BF2409C88EA199f7110f39A9bF"
+    "da": {
+      "anytrust": {
+        "enable": true,
+        "rest-aggregator": {
+          "enable": true
+        },
+        "rpc-aggregator": {
+          "assumed-honest": 1,
+          "backends": "[{\"url\":\"http://das-server:9876\",\"pubkey\":\"YBDtH63viIhMqKhI1gMJAfnnkHb+rNKTSkdVbIc1M8Ur0nXu9mum/IbVwKztC73AOBYy//02MK4km8ECP1YLjNYLZ6nTio/Z2PjlsXFJlW8ug3FTzAlxtOvlNz4DPW87pgSckvzD2BgP7zOBwNnWrW+VX3kQBPfN1+1NblDFYMMd3Uz1hE1TWpNge3TSqL9B8Q72PW13loPuVTTZ7uiEtcMmCK0TIy57hupb/I0gHiPqf22JdueIKzjhXiLL0+HstA1XV5Lj8ajKRQmP+xtNhLGY/+XaI40iSF1XspDwn1wEWrVIlgGF12q6xyC/vZ8nTAY+rYN0YntFiI2JlS7VKw13U6fctojgWnqKDgJCMGraf5i+/DUFypWyVtvCdoMOfA==\",\"signermask\":1}]",
+          "enable": false
+        }
+      }
     },
     "delayed-sequencer": {
       "enable": false
